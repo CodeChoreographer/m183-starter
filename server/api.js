@@ -1,7 +1,9 @@
 const express = require("express");
+const bcrypt =require("bcrypt");
 const { body, validationResult } = require("express-validator");
 
 const router = express.Router();
+const SALT_ROUNDS = 10;
 
 // Login validation
 router.post(
@@ -18,14 +20,23 @@ router.post(
       .escape()
       .matches(/^[a-zA-Z0-9!@#$%^&*()_+-=]+$/).withMessage("Passwort enthält ungültige Zeichen"),
   ],
-  (req, res) => {
+  async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).send(errors.array()[0].msg); // show only first error
     }
 
-    const { username } = req.body;
-    res.send(`Erfolgreiche Anmeldung für ${username}`); 
+    const { username, password } = req.body;
+    try {
+      // password hashing
+      const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+
+      res.send(`Erfolgreiche Anmeldung für ${username} mit sicherem Passwort-Hash.`);
+      console.log(`Passwort-Hash für ${username}: ${hashedPassword}`);
+    } catch (error) {
+      console.error("Fehler beim Hashen des Passworts:", error);
+      res.status(500).send("Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.");
+    }
   }
 );
 

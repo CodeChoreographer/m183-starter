@@ -11,7 +11,8 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   const login = async (username, password) => {
-    // resultText.innerHTML = "";  always delete the last error message
+    resultText.innerHTML = "";
+
 
     const response = await fetch("/api/login", {
       method: "POST",
