@@ -1,9 +1,14 @@
 const express = require("express");
 const http = require("http");
 const rateLimit = require("express-rate-limit");
+const dotenv = require("dotenv");
 const { initializeAPI } = require("./api");
 
-// Create the express server
+dotenv.config();
+
+// port from env or standard port
+const serverPort = process.env.PORT || 3000;
+
 const app = express();
 app.use(express.json());
 const server = http.createServer(app);
@@ -12,25 +17,21 @@ const limiter = rateLimit({
   windowMs: 60 * 1000, 
   max: 50, 
   message: "Zu viele Anfragen. Bitte warte eine Minute, bevor du es erneut versuchst.",
-  standardHeaders: true, // sends rate limit header
-  legacyHeaders: false, // no older headers
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 
-// use an all api routes
+// rate limit on all api
 app.use("/api", limiter);
 
-// deliver static files from the client folder like css, js, images
 app.use(express.static("client"));
-// route for the homepage
+
 app.get("/", (req, res) => {
   res.sendFile(__dirname + "/client/index.html");
 });
 
-// Initialize the REST api
 initializeAPI(app);
 
-//start the web server
-const serverPort = 3000;
 server.listen(serverPort, () => {
-  console.log(`Express Server started on port ${serverPort}`);
+  console.log(`Express Server gestartet auf Port ${serverPort}`);
 });
