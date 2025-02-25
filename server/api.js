@@ -1,46 +1,76 @@
 const express = require("express");
-const bcrypt =require("bcrypt");
+const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
 const { body, validationResult } = require("express-validator");
+const db = require("./database"); // SQLite-Datenbank importieren
 
 const router = express.Router();
 const SALT_ROUNDS = 10;
+const JWT_SECRET = process.env.JWT_SECRET || "supersecret"; // Umgebungsvariable für Sicherheit
 
-// Login validation
+// Middleware zur Token-Überprüfung (wird später für geschützte Endpunkte genutzt)
+const authenticateToken = (req, res, next) => {
+  const token = req.headers["authorization"]?.split(" ")[1];
+  if (!token) return res.status(401).json({ error: "Kein Token vorhanden" });
+
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) return res.status(403).json({ error: "Ungültiges Token" });
+
+    req.user = user; // Benutzer in die Anfrage speichern
+    next();
+  });
+};
+
+// Login-Endpunkt
 router.post(
   "/login",
   [
-    body("username")
-      .trim()
-      .isEmail().withMessage("Username muss eine gültige E-Mail sein")
-      .escape(),
-
-    body("password")
-      .trim()
-      .isLength({ min: 10 }).withMessage("Passwort muss mindestens 10 Zeichen lang sein")
-      .escape()
-      .matches(/^[a-zA-Z0-9!@#$%^&*()_+-=]+$/).withMessage("Passwort enthält ungültige Zeichen"),
+    body("username").trim().isEmail().withMessage("Ungültige E-Mail-Adresse").escape(),
+    body("password").trim().isLength({ min: 10 }).withMessage("Passwort zu kurz").escape(),
   ],
-  async (req, res) => {
+  (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).send(errors.array()[0].msg); // show only first error
+      return res.status(400).json({ error: errors.array()[0].msg });
     }
 
     const { username, password } = req.body;
-    try {
-      // password hashing
-      const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
 
-      res.send(`Erfolgreiche Anmeldung für ${username} mit sicherem Passwort-Hash.`);
-      console.log(`Passwort-Hash für ${username}: ${hashedPassword}`);
-    } catch (error) {
-      console.error("Fehler beim Hashen des Passworts:", error);
-      res.status(500).send("Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.");
-    }
+    db.get(`SELECT * FROM users WHERE username = ?`, [username], (err, user) => {
+      if (err) {
+        return res.status(500).json({ error: "Datenbankfehler" });
+      }
+      if (!user) {
+        return res.status(401).json({ error: "Benutzer nicht gefunden" });
+      }
+
+      bcrypt.compare(password, user.password, (err, isMatch) => {
+        if (err || !isMatch) {
+          return res.status(401).json({ error: "Falsches Passwort" });
+        }
+
+        // JWT erzeugen mit Benutzername & Rolle
+        const token = jwt.sign({ username: user.username, role: user.role }, JWT_SECRET, {
+          expiresIn: "1h",
+        });
+
+        res.json({ message: "Login erfolgreich", token });
+      });
+    });
   }
 );
 
-// API-routes
+// Geschützter Endpunkt für Beispiel-Posts
+router.get("/posts", authenticateToken, (req, res) => {
+  const posts = [
+    { id: 1, title: "Introduction to JavaScript", content: "JavaScript ist eine vielseitige Sprache..." },
+    { id: 2, title: "Functional Programming", content: "Funktionen stehen im Mittelpunkt..." },
+    { id: 3, title: "Async Programming", content: "Asynchrone Programmierung ermöglicht..." },
+  ];
+  res.json(posts);
+});
+
+// API initialisieren
 const initializeAPI = (app) => {
   app.use("/api", router);
 };
