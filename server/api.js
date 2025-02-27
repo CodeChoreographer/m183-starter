@@ -2,77 +2,112 @@ const express = require("express");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const { body, validationResult } = require("express-validator");
-const db = require("./database"); // SQLite-Datenbank importieren
+const db = require("./database");
+const crypto = require("crypto");
+const AES = require("aes-encryption");
 
 const router = express.Router();
-const SALT_ROUNDS = 10;
-const JWT_SECRET = process.env.JWT_SECRET || "supersecret"; // Umgebungsvariable für Sicherheit
 
-// Middleware zur Token-Überprüfung (wird später für geschützte Endpunkte genutzt)
+const SALT_ROUNDS = 10;
+const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
+
+const aes = new AES();
+const AES_SECRET = getAesSecret(); // Hole oder generiere AES-Schlüssel
+aes.setSecretKey(AES_SECRET);
+
+// 📌 **Hilfsfunktion: Sicheren AES-Schlüssel laden oder erzeugen**
+function getAesSecret() {
+  let secret = process.env.AES_SECRET;
+
+  if (!secret) {
+    secret = crypto.randomBytes(16).toString("hex"); // 16 Bytes → 32 Zeichen Hex
+    console.warn("⚠️ Achtung: AES-Schlüssel wurde dynamisch generiert. Daten sind nach Neustart nicht mehr lesbar!");
+  }
+
+  console.log("🔑 AES Schlüssel:", secret);
+  console.log("🔢 Schlüssellänge:", secret.length);
+  return secret;
+}
+
+// 📌 **Middleware zur Token-Authentifizierung**
 const authenticateToken = (req, res, next) => {
   const token = req.headers["authorization"]?.split(" ")[1];
-  if (!token) return res.status(401).json({ error: "Kein Token vorhanden" });
+  if (!token) return res.status(401).json({ error: "❌ Kein Token vorhanden" });
 
   jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) return res.status(403).json({ error: "Ungültiges Token" });
+    if (err) return res.status(403).json({ error: "❌ Du musst eingeloggt sein" });
 
-    req.user = user; // Benutzer in die Anfrage speichern
+    req.user = user;
     next();
   });
 };
 
-// Login-Endpunkt
-router.post(
-  "/login",
-  [
-    body("username").trim().isEmail().withMessage("Ungültige E-Mail-Adresse").escape(),
-    body("password").trim().isLength({ min: 10 }).withMessage("Passwort zu kurz").escape(),
-  ],
-  (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ error: errors.array()[0].msg });
-    }
+// 📌 **Login-Endpoint**
+router.post("/login", (req, res) => {
+  const { username, password } = req.body;
 
-    const { username, password } = req.body;
+  db.get(`SELECT * FROM users WHERE username = ?`, [username], (err, user) => {
+    if (err) return res.status(500).json({ error: "❌ Datenbankfehler" });
+    if (!user) return res.status(401).json({ error: "❌ Benutzer nicht gefunden" });
 
-    db.get(`SELECT * FROM users WHERE username = ?`, [username], (err, user) => {
-      if (err) {
-        return res.status(500).json({ error: "Datenbankfehler" });
-      }
-      if (!user) {
-        return res.status(401).json({ error: "Benutzer nicht gefunden" });
-      }
+    bcrypt.compare(password, user.password, (err, isMatch) => {
+      if (err || !isMatch) return res.status(401).json({ error: "❌ Falsches Passwort" });
 
-      bcrypt.compare(password, user.password, (err, isMatch) => {
-        if (err || !isMatch) {
-          return res.status(401).json({ error: "Falsches Passwort" });
-        }
+      const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: "1h" });
 
-        // JWT erzeugen mit Benutzername & Rolle
-        const token = jwt.sign({ username: user.username, role: user.role }, JWT_SECRET, {
-          expiresIn: "1h",
-        });
-
-        res.json({ message: "Login erfolgreich", token });
-      });
+      res.json({ message: "✅ Login erfolgreich", token });
     });
-  }
-);
-
-// Geschützter Endpunkt für Beispiel-Posts
-router.get("/posts", authenticateToken, (req, res) => {
-  const posts = [
-    { id: 1, title: "Introduction to JavaScript", content: "JavaScript ist eine vielseitige Sprache..." },
-    { id: 2, title: "Functional Programming", content: "Funktionen stehen im Mittelpunkt..." },
-    { id: 3, title: "Async Programming", content: "Asynchrone Programmierung ermöglicht..." },
-  ];
-  res.json(posts);
+  });
 });
 
-// API initialisieren
-const initializeAPI = (app) => {
-  app.use("/api", router);
-};
+// 📌 **Endpoint: Alle Posts abrufen (Entschlüsseln)**
+router.get("/posts", authenticateToken, (req, res) => {
+  db.all("SELECT id, title, content FROM posts", [], (err, rows) => {
+    if (err) return res.status(500).json({ error: "❌ Fehler beim Abrufen der Posts" });
 
-module.exports = { initializeAPI };
+    try {
+      const decryptedPosts = rows.map(post => {
+        try {
+          return {
+            id: post.id,
+            title: aes.decrypt(post.title),
+            content: aes.decrypt(post.content),
+          };
+        } catch (decryptError) {
+          console.error("🔴 Fehler beim Entschlüsseln eines Posts:", decryptError.message);
+          return { id: post.id, title: "🔒 Fehler beim Entschlüsseln", content: "🔒 Fehler beim Entschlüsseln" };
+        }
+      });
+
+      res.json(decryptedPosts);
+    } catch (error) {
+      console.error("🔴 Fehler beim Entschlüsseln der Posts:", error.message);
+      res.status(500).json({ error: "❌ Fehler beim Entschlüsseln der Daten", details: error.message });
+    }
+  });
+});
+
+// 📌 **Endpoint: Neuen Post erstellen (Verschlüsseln)**
+router.post("/posts", authenticateToken, (req, res) => {
+  const { title, content } = req.body;
+  const userId = req.user.id;
+
+  try {
+    const encryptedTitle = aes.encrypt(title);
+    const encryptedContent = aes.encrypt(content);
+
+    db.run(
+      "INSERT INTO posts (title, content, user_id) VALUES (?, ?, ?)",
+      [encryptedTitle, encryptedContent, userId],
+      function (err) {
+        if (err) return res.status(500).json({ error: "❌ Fehler beim Speichern des Posts" });
+        res.json({ message: "✅ Post erfolgreich erstellt", postId: this.lastID });
+      }
+    );
+  } catch (error) {
+    console.error("🔴 Fehler beim Verschlüsseln:", error.message);
+    res.status(500).json({ error: "❌ Fehler beim Verschlüsseln der Daten", details: error.message });
+  }
+});
+
+module.exports = router;
