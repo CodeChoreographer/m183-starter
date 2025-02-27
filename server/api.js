@@ -8,37 +8,30 @@ const NodeRSA = require("node-rsa");
 
 const router = express.Router();
 
-
 const SALT_ROUNDS = 10;
 const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
 
-// RSA-Schlüssel aus Dateien laden
+// 📌 RSA-Schlüssel aus Dateien laden
 const publicKey = new NodeRSA(fs.readFileSync("public.pem", "utf8"));
 const privateKey = new NodeRSA(fs.readFileSync("private.pem", "utf8"));
 
-// Middleware zur Token-Authentifizierung
+// 📌 Middleware zur Token-Authentifizierung
 const authenticateToken = (req, res, next) => {
   const token = req.headers["authorization"]?.split(" ")[1];
-  if (!token) return res.status(401).json({ error: "❌ Kein Token vorhanden" });
   if (!token) return res.status(401).json({ error: "❌ Kein Token vorhanden" });
 
   jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) return res.status(403).json({ error: "❌ Du musst eingeloggt sein" });
-    if (err) return res.status(403).json({ error: "❌ Du musst eingeloggt sein" });
 
-    req.user = user;
     req.user = user;
     next();
   });
 };
 
-// Login-Endpoint
+// 📌 Login-Endpoint
 router.post("/login", (req, res) => {
   const { username, password } = req.body;
 
-  db.get(`SELECT * FROM users WHERE username = ?`, [username], (err, user) => {
-    if (err) return res.status(500).json({ error: "❌ Datenbankfehler" });
-    if (!user) return res.status(401).json({ error: "❌ Benutzer nicht gefunden" });
   db.get(`SELECT * FROM users WHERE username = ?`, [username], (err, user) => {
     if (err) return res.status(500).json({ error: "❌ Datenbankfehler" });
     if (!user) return res.status(401).json({ error: "❌ Benutzer nicht gefunden" });
@@ -53,7 +46,7 @@ router.post("/login", (req, res) => {
   });
 });
 
-// Endpoint: Alle Posts abrufen (Entschlüsseln)
+// 📌 Endpoint: Alle Posts abrufen (Entschlüsseln)
 router.get("/posts", authenticateToken, (req, res) => {
   db.all("SELECT id, title, content FROM posts", [], (err, rows) => {
     if (err) return res.status(500).json({ error: "❌ Fehler beim Abrufen der Posts" });
@@ -80,7 +73,7 @@ router.get("/posts", authenticateToken, (req, res) => {
   });
 });
 
-// Endpoint: Neuen Post erstellen (Verschlüsseln)
+// 📌 Endpoint: Neuen Post erstellen (Verschlüsseln)
 router.post("/posts", authenticateToken, (req, res) => {
   const { title, content } = req.body;
   const userId = req.user.id;
@@ -103,18 +96,15 @@ router.post("/posts", authenticateToken, (req, res) => {
   }
 });
 
-//  Endpoint: Client kann sich ein eigenes Public/Private Key-Paar generieren
+// 📌 Endpoint: Client kann sich ein eigenes Public/Private Key-Paar generieren
 router.get("/generate-keys", (req, res) => {
   try {
     const key = new NodeRSA({ b: 2048 });
 
-    const publicKey = key.exportKey("public");
-    const privateKey = key.exportKey("private");
-
     res.json({
       message: "✅ Schlüsselpaar erfolgreich generiert!",
-      publicKey,
-      privateKey,
+      publicKey: key.exportKey("public"),
+      privateKey: key.exportKey("private"),
     });
   } catch (error) {
     console.error("🔴 Fehler beim Generieren des Schlüsselpaares:", error.message);
@@ -122,5 +112,4 @@ router.get("/generate-keys", (req, res) => {
   }
 });
 
-module.exports = router;
 module.exports = router;

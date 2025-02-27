@@ -121,7 +121,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     } catch (error) {
       console.error("Fehler beim Login:", error);
-      resultText.innerHTML = "❌ Serverfehler. Bitte später erneut versuchen.";
+      resultText.innerHTML = "❌ Zu viele Anfragen. Bitte warte eine Minute, bevor du es erneut versuchst..";
     }
   };
 
