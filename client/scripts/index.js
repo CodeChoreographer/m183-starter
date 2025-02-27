@@ -115,6 +115,7 @@ document.addEventListener("DOMContentLoaded", () => {
         localStorage.setItem("jwt", result.token);
         resultText.innerHTML = "✅ Login erfolgreich!";
         displayUserInfo();
+        fetchPosts();
       } else {
         resultText.innerHTML = `❌ Fehler: ${result.error}`;
       }

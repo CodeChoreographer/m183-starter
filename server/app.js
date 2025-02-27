@@ -7,8 +7,14 @@ dotenv.config(); // .env einlesen
 
 
 const app = express(); // App wird  initialisiert
+const app = express(); // App wird  initialisiert
 const server = http.createServer(app);
 
+const apiRouter = require("./api"); // API-Router importieren
+
+app.use(express.json());
+
+// Rate Limiting
 const apiRouter = require("./api"); // API-Router importieren
 
 app.use(express.json());
@@ -24,6 +30,7 @@ const limiter = rateLimit({
 
 app.use("/api", limiter);
 app.use("/api", apiRouter); // API-Router registrieren
+app.use("/api", apiRouter); // API-Router registrieren
 
 app.use(express.static("client"));
 
@@ -32,7 +39,9 @@ app.get("/", (req, res) => {
 });
 
 const serverPort = process.env.PORT || 3000;
+const serverPort = process.env.PORT || 3000;
 
 server.listen(serverPort, () => {
+  console.log(`🚀 Express Server gestartet auf Port ${serverPort}`);
   console.log(`🚀 Express Server gestartet auf Port ${serverPort}`);
 });

@@ -8,6 +8,7 @@ const NodeRSA = require("node-rsa");
 
 const router = express.Router();
 
+
 const SALT_ROUNDS = 10;
 const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
 
@@ -19,10 +20,13 @@ const privateKey = new NodeRSA(fs.readFileSync("private.pem", "utf8"));
 const authenticateToken = (req, res, next) => {
   const token = req.headers["authorization"]?.split(" ")[1];
   if (!token) return res.status(401).json({ error: "❌ Kein Token vorhanden" });
+  if (!token) return res.status(401).json({ error: "❌ Kein Token vorhanden" });
 
   jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) return res.status(403).json({ error: "❌ Du musst eingeloggt sein" });
+    if (err) return res.status(403).json({ error: "❌ Du musst eingeloggt sein" });
 
+    req.user = user;
     req.user = user;
     next();
   });
@@ -32,6 +36,9 @@ const authenticateToken = (req, res, next) => {
 router.post("/login", (req, res) => {
   const { username, password } = req.body;
 
+  db.get(`SELECT * FROM users WHERE username = ?`, [username], (err, user) => {
+    if (err) return res.status(500).json({ error: "❌ Datenbankfehler" });
+    if (!user) return res.status(401).json({ error: "❌ Benutzer nicht gefunden" });
   db.get(`SELECT * FROM users WHERE username = ?`, [username], (err, user) => {
     if (err) return res.status(500).json({ error: "❌ Datenbankfehler" });
     if (!user) return res.status(401).json({ error: "❌ Benutzer nicht gefunden" });
@@ -115,4 +122,5 @@ router.get("/generate-keys", (req, res) => {
   }
 });
 
+module.exports = router;
 module.exports = router;
