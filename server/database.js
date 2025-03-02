@@ -9,7 +9,7 @@ const db = new sqlite3.Database("./database.sqlite", (err) => {
   }
 });
 
-// Tabelle erstellen, falls sie nicht existiert
+// Tabelle users erstellen, falls sie nicht existiert
 db.serialize(() => {
   db.run(`
     CREATE TABLE IF NOT EXISTS users (
@@ -20,5 +20,19 @@ db.serialize(() => {
     )
   `);
 });
+
+// Tabelle posts erstellen, falls sie nicht existiert
+db.serialize(() => {
+  db.run(`
+    CREATE TABLE IF NOT EXISTS posts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      content TEXT NOT NULL,
+      user_id INTEGER NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    )
+  `);
+});
+
 
 module.exports = db;
