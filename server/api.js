@@ -85,12 +85,10 @@ router.get("/posts", authenticateToken, (req, res) => {
       res.json(decryptedPosts);
     } catch (error) {
       console.error("🔴 Fehler beim Entschlüsseln der Posts:", error.message);
-      res
-        .status(500)
-        .json({
-          error: "❌ Fehler beim Entschlüsseln der Daten",
-          details: error.message,
-        });
+      res.status(500).json({
+        error: "❌ Fehler beim Entschlüsseln der Daten",
+        details: error.message,
+      });
     }
   });
 });
@@ -120,12 +118,10 @@ router.post("/posts", authenticateToken, (req, res) => {
     );
   } catch (error) {
     console.error("🔴 Fehler beim Verschlüsseln mit RSA:", error.message);
-    res
-      .status(500)
-      .json({
-        error: "❌ Fehler beim Verschlüsseln der Daten",
-        details: error.message,
-      });
+    res.status(500).json({
+      error: "❌ Fehler beim Verschlüsseln der Daten",
+      details: error.message,
+    });
   }
 });
 
@@ -144,12 +140,10 @@ router.get("/generate-keys", (req, res) => {
       "🔴 Fehler beim Generieren des Schlüsselpaares:",
       error.message
     );
-    res
-      .status(500)
-      .json({
-        error: "❌ Fehler beim Erzeugen der Schlüssel",
-        details: error.message,
-      });
+    res.status(500).json({
+      error: "❌ Fehler beim Erzeugen der Schlüssel",
+      details: error.message,
+    });
   }
 });
 
